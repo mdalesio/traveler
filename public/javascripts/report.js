@@ -164,8 +164,9 @@ $(function () {
         // register event handler
         $('.inline-checkbox input[type="checkbox"]').on('input', function () {
           var cols = colMap[$(this).data('toggle')];
+          var show = $(this).prop('checked');
           cols.forEach(function (c) {
-            report.fnSetColumnVis(c, $(this).prop('checked'));
+            report.fnSetColumnVis(c, show);
           });
         });
       }
