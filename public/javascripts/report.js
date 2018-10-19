@@ -25,12 +25,58 @@ function constructControl(target, columns) {
   });
 }
 
-function rowArrayData(aoColumns, obj){
+function rowArrayData(systemColumns, userColumns, obj) {
   var out = [];
-  aoColumns.forEach(function(col) {
-    out.push(obj[col.mData]);
+  systemColumns.forEach(function (col) {
+    var data;
+    if (_.isFunction(col.mData)) {
+      data = col.mData(obj);
+    } else {
+      data = _.property(col.mData)(obj);
+    }
+    if (_.isFunction(col.mRender)) {
+      out.push(col.mRender(data));
+    } else {
+      out.push(data);
+    }
   });
+  userColumns.forEach(function (col) {
+    var data =_.property(col.mData)(obj);
+    if (data) {
+      out.push(data.label || '', data.value || '');
+    } else {
+      out.push('', '');
+    }
+  });
+
   return out;
+}
+
+function systemColTh(name) {
+  return '<th rowspan="2" role="columnheader" colspan="1">' + name + '</th>';
+}
+
+function userColTh1(name) {
+  return '<th rowspan="1" role="columnheader" colspan="2">' + name + '</th>';
+}
+
+function userColTh2() {
+  return '<th rowspan="1" role="columnheader" colspan="1">label</th><th rowspan="1" role="columnheader" colspan="1">value</th>';
+}
+
+function addThead(sTable, systemColumns, userColumns) {
+  var tr1 = $('<tr role="row">');
+  systemColumns.forEach(function (c) {
+    tr1.append(systemColTh(c.sTitle));
+  });
+  userColumns.forEach(function (c) {
+    tr1.append(userColTh1(c.sTitle));
+  });
+  var tr2 = $('<tr role="row">');
+  userColumns.forEach(function () {
+    tr2.append(userColTh2());
+  });
+  $(sTable).prepend($('<thead>').append(tr1).append(tr2));
 }
 
 function constructTable(table, systemColumns, userColumns, travelers, staticProperty, colMap) {
@@ -43,30 +89,31 @@ function constructTable(table, systemColumns, userColumns, travelers, staticProp
     keys = _.union(keys, _.keys(travelers[id].user_defined)).sort();
   }
   // add user defined keys to userColumns and colMap
-  _.forEach(keys, function (key) {
-    // col = keyLableColumn(key);
-    // userColumns.push(col);
-    // colMap[col.sTitle || col.mData] = systemColumns.length + userColumns.length - 1;
+  keys.forEach(function (key, index) {
     col = keyValueLableColumn(key);
     userColumns.push(col);
-    colMap[col.sTitle || col.mData] = systemColumns.length + userColumns.length - 1;
+    colMap[col.sTitle || col.mData] = [systemColumns.length + index * 2, systemColumns.length + index * 2 + 1];
+    // col = keyValueColumn(key);
+    // userColumns.push(col);
+    // colMap[col.sTitle || col.mData] = systemColumns.length + userColumns.length - 1;
   });
   // var aoColumns = systemColumns.concat(userColumns);
 
   // get all the data
   for (id in travelers) {
-    rows.push(travelers[id]);
-    // rows.push(rowArrayData(aoColumns, travelers[id]));
+    // rows.push(travelers[id]);
+    rows.push(rowArrayData(systemColumns, userColumns, travelers[id]));
   }
 
   // construct the column map
 
   // var aoColumns = systemColumns.concat(userColumns);
-
+  addThead('#report-table', systemColumns, userColumns);
   // draw the table
   table = $('#report-table').dataTable({
     aaData: rows,
-    aoColumns: systemColumns.concat(userColumns),
+    // aoColumns: systemColumns.concat(userColumns),
+    // aoColumns: aoColumns,
     oTableTools: oTableTools,
     iDisplayLength: -1,
     aLengthMenu: [
@@ -92,7 +139,7 @@ $(function () {
   var userColumns = [];
   var colMap = {};
   systemColumns.forEach(function (col, index) {
-    colMap[col.sTitle || col.mData] = index;
+    colMap[col.sTitle || col.mData] = [index];
   });
   var finishedT = 0;
 
@@ -116,7 +163,10 @@ $(function () {
         constructControl('#user-keys', userColumns, colMap);
         // register event handler
         $('.inline-checkbox input[type="checkbox"]').on('input', function () {
-          report.fnSetColumnVis(colMap[$(this).data('toggle')], $(this).prop('checked'));
+          var cols = colMap[$(this).data('toggle')];
+          cols.forEach(function (c) {
+            report.fnSetColumnVis(c, $(this).prop('checked'));
+          });
         });
       }
     });
